@@ -66,8 +66,9 @@ var _ = Describe("rollback command", func() {
 				session := helpers.CF("rollback", appName, "--revision", "1")
 				Eventually(session).Should(Exit(1))
 
-				Expect(session).To(Say("Rolling back to revision 1 for app %s in org %s / space %s as %s...", appName, orgName, spaceName, userName))
-				Expect(session).To(Say("App '%s' not found.", appName))
+				Expect(session).ToNot(Say("Are you sure you want to continue?"))
+
+				Expect(session.Err).To(Say("App '%s' not found.", appName))
 				Expect(session).To(Say("FAILED"))
 			})
 
