@@ -1,4 +1,5 @@
 *.prototype
+*.original
 
 .DS_Store
 *.swp
