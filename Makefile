@@ -1,3 +1,6 @@
+DOCKER_BUILDKIT=1
+PLATFORM=local
+
 CF_DIAL_TIMEOUT ?= 15
 NODES ?= 10
 PACKAGES ?= api actor command types util version integration/helpers
@@ -27,9 +30,14 @@ ginkgo_int = ginkgo $(GINKGO_INT_FLAGS)
 GINKGO_UNITS_FLAGS=$(GINKGO_FLAGS) -randomizeSuites -p
 ginkgo_units = ginkgo $(GINKGO_UNITS_FLAGS)
 
-all: lint test build
+all: build
+# test: lint unit-test
 
-build: out/cf ## Compile and build a new `cf` binary
+build: bin/cf
+
+# all: lint test build
+
+# build: out/cf ## Compile and build a new `cf` binary
 
 check-target-env:
 ifndef CF_INT_API
@@ -140,6 +148,14 @@ lint: custom-lint ## Runs all linters and formatters
 		| grep -v -e "/cf/" -e "/fixtures/" -e "/assets/" -e "/plugin/" -e "/command/plugin" -e "fakes" \
 		| xargs golangci-lint run
 	@echo "No lint errors!"
+
+.PHONY: bin/cf
+bin/cf:
+	@docker build \
+	--build-arg LD_FLAGS="\"${LD_FLAGS}\"" \
+	--platform "${PLATFORM}" \
+	--output bin/ \
+	--target bin .
 
 # TODO: version specific tagging for all these builds
 # Build dynamic binary for Darwin
