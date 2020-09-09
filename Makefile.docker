@@ -10,8 +10,9 @@ CF_BUILD_VERSION ?= $$(cat BUILD_VERSION) # TODO: version specific
 CF_BUILD_SHA ?= $$(git rev-parse --short HEAD)
 CF_BUILD_DATE ?= $$(date -u +"%Y-%m-%d")
 LD_FLAGS_COMMON=-w -s \
-       -X 'code.cloudfoundry.org/cli/version.binarySHA=$(CF_BUILD_SHA)' \
-	-X 'code.cloudfoundry.org/cli/version.binaryBuildDate=$(CF_BUILD_DATE)'
+-X 'code.cloudfoundry.org/cli/version.binarySHA=$(CF_BUILD_SHA)' \
+-X 'code.cloudfoundry.org/cli/version.binaryBuildDate=$(CF_BUILD_DATE)'
+# LD_FLAGS_COMMON= 
 LD_FLAGS =$(LD_FLAGS_COMMON) \
 	-X 'code.cloudfoundry.org/cli/version.binaryVersion=$(CF_BUILD_VERSION)'
 LD_FLAGS_LINUX = -extldflags \"-static\" $(LD_FLAGS)
@@ -154,8 +155,8 @@ bin/cf:
 	@docker build \
 	--build-arg LD_FLAGS="\"${LD_FLAGS}\"" \
 	--platform "${PLATFORM}" \
-	--target bin \
-	--output out/ .
+	--output bin/ \
+	--target bin .
 
 # TODO: version specific tagging for all these builds
 # Build dynamic binary for Darwin
