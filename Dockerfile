@@ -10,7 +10,7 @@ COPY . .
 FROM  base AS build 
 ARG TARGETOS
 ARG TARGETARCH
-ARG LD_FLAGS
+# ARG LD_FLAGS
 
 RUN --mount=type=cache,target=/root/.cache/go-build \
   GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/cf .
