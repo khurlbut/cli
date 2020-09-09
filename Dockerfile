@@ -1,14 +1,16 @@
 # syntax = docker/dockerfile:1-experimental
 
-FROM --platform=${BUILDPLATFORM} golang:1.13.15-alpine3.12 AS build
+FROM --platform=${BUILDPLATFORM} golang:1.13.15-alpine3.12 AS base
 ENV GO_ENABLED=0
-ARG TARGETOS
-ARG TARGETARCH
-ARG LD_FLAGS
 
 RUN mkdir -p $GOPATH/src/code.cloudfoundry.org/cli
 WORKDIR $GOPATH/src/code.cloudfoundry.org/cli
 COPY . .
+
+FROM  base AS build 
+ARG TARGETOS
+ARG TARGETARCH
+ARG LD_FLAGS
 
 RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/cf .
 # RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags=${LD_FLAGS} -o /out/cf .
