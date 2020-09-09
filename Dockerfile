@@ -12,8 +12,9 @@ ARG TARGETOS
 ARG TARGETARCH
 ARG LD_FLAGS
 
-RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/cf .
-# RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags=${LD_FLAGS} -o /out/cf .
+RUN --mount=type=cache,target=/root/.cache/go-build \
+  GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/cf .
+# GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags=${LD_FLAGS} -o /out/cf .
 
 FROM scratch AS bin-unix
 COPY --from=build /out/cf /
