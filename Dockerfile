@@ -6,14 +6,9 @@ ARG TARGETOS
 ARG TARGETARCH
 ARG LD_FLAGS
 
-RUN apk update
-RUN apk add git
-
-RUN mkdir /out
-RUN mkdir -p $GOPATH/src/code.cloudfoundry.org
-WORKDIR $GOPATH/src/code.cloudfoundry.org 
-RUN git clone https://github.com/khurlbut/cli.git
+RUN mkdir -p $GOPATH/src/code.cloudfoundry.org/cli
 WORKDIR $GOPATH/src/code.cloudfoundry.org/cli
+COPY . .
 
 RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/cf .
 # RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags=${LD_FLAGS} -o /out/cf .
