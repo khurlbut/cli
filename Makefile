@@ -34,7 +34,7 @@ ginkgo_units = ginkgo $(GINKGO_UNITS_FLAGS)
 all: build
 # test: lint unit-test
 
-build: bin/cf
+build: out/cf
 
 # all: lint test build
 
@@ -150,25 +150,13 @@ lint: custom-lint ## Runs all linters and formatters
 		| xargs golangci-lint run
 	@echo "No lint errors!"
 
-.PHONY: bin/cf
-bin/cf:
+.PHONY: out/cf
+out/cf:
 	@docker build \
 	--build-arg LD_FLAGS="\"${LD_FLAGS}\"" \
 	--platform "${PLATFORM}" \
 	--target bin \
 	--output out/ .
-
-# TODO: version specific tagging for all these builds
-# Build dynamic binary for Darwin
-ifeq ($(UNAME_S),Darwin)
-out/cf: $(GOSRC)
-	go build -ldflags "$(LD_FLAGS)" -o out/cf .
-else
-out/cf: $(GOSRC)
-	CGO_ENABLED=0 go build \
-		$(REQUIRED_FOR_STATIC_BINARY) \
-		-ldflags "$(LD_FLAGS_LINUX)" -o out/cf .
-endif
 
 out/cf-cli_linux_i686: $(GOSRC)
 	CGO_ENABLED=0 GOARCH=386 GOOS=linux go build \
