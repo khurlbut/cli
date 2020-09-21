@@ -1,6 +1,8 @@
 package v7pushaction
 
 import (
+	"fmt"
+
 	"code.cloudfoundry.org/cli/actor/v7action"
 	"code.cloudfoundry.org/cli/resources"
 	"code.cloudfoundry.org/cli/util/manifestparser"
@@ -15,12 +17,16 @@ func (actor Actor) CreatePushPlans(
 	manifest manifestparser.Manifest,
 	overrides FlagOverrides,
 ) ([]PushPlan, v7action.Warnings, error) {
+	fmt.Printf("create_push_plans.go CreatePushPlans 1\n")
 	var pushPlans []PushPlan
+
+	return pushPlans, nil, nil
 
 	apps, warnings, err := actor.V7Actor.GetApplicationsByNamesAndSpace(manifest.AppNames(), spaceGUID)
 	if err != nil {
 		return nil, warnings, err
 	}
+	fmt.Printf("create_push_plans.go CreatePushPlans 1\n")
 	nameToApp := actor.generateAppNameToApplicationMapping(apps)
 
 	for _, manifestApplication := range manifest.Applications {
