@@ -184,26 +184,26 @@ func (cmd PushCommand) Execute(args []string) error {
 		return err
 	}
 
-	// !!! KDH !!!
-	appName := transformedManifest.Applications[0].Name
-	// !!! KDH !!!
-
+	fmt.Printf("push_command.go: Execute 9\n")
 	// Here is where they Marshal the manifest into []byte
 	// This is where I might use my Marshal command on transformedManifest
-	fmt.Printf("push_command.go: Execute 9\n")
 	// transformedRawManifest, err := cmd.ManifestParser.MarshalManifest(transformedManifest)
 	// if err != nil {
 	// 	return err
 	// }
 	// fmt.Printf("push_command.go 9.1 transformedRawManifest is: %v\n", transformedRawManifest)
 
+	// !!! KDH !!!
+
 	app := transformedManifest.Applications[0]
-	fmt.Printf("\napp:\n %T, %+v\n\n", app, app)
-	deployer, container := NewDeployment(appName, "repo-url")
+
+	deployer, container := NewDeployment(app.Name, "repo-url")
 	deployer.DeploymentSpec.Replicas = *app.Instances
 
 	// Set Resource Constraints
-	container.Resources.Requests.Memory = transformedManifest.Applications[0].Memory
+	// container.Resources.Requests.CPU = ??? PCF does not allow specification of CPU usage
+	// container.Resources.Limits.CPU = ??? PCF does not allow specification of CPU usage
+	container.Resources.Requests.Memory = app.Memory
 	container.Resources.Limits.Memory = app.Memory
 	container.Resources.Requests.EphemeralStorage = app.DiskQuota
 	container.Resources.Limits.EphemeralStorage = app.DiskQuota
@@ -218,15 +218,11 @@ func (cmd PushCommand) Execute(args []string) error {
 	healthCheckType := app.HealthCheckType
 	if string(healthCheckType) == string(HTTPGetProbeType) {
 		// HealthCheckTimeout specifies how long to allow for the app to startup
-		// Periodic health check interval defaults to 30s in PCF.
+		// Periodic health check interval is hard coded to 30s in PCF.
 		container.AddLivenessProbe(HTTPGetProbeType, app.HealthCheckEndpoint, app.HealthCheckTimeout, 30)
 	}
 
-	// KDH: The sample manifest.yaml file I'm looking at from browse-controller
-	//      has what appears to be bad health check keys.
-	//      Revisit setting Liveness Probes from manifest when we have better input.
-	// deployer.DeploymentSpec.Containers[0].LivenessProbe.HTTPGet.Path = app.HealthCheckHTTPEndpoint
-	// deployer.DeploymentSpec.Containers[0].LivenessProbe.PeriodSeconds = app.delay
+	// Marshal the Kubernetes Deployment YAML
 	fmt.Println(deployer.Marshal())
 
 	fmt.Printf("push_command.go: Execute 10\n")
