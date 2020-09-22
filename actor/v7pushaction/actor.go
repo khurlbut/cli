@@ -3,6 +3,7 @@
 package v7pushaction
 
 import (
+	"fmt"
 	"regexp"
 )
 
@@ -27,6 +28,7 @@ const URLRegexp = "^(?:https?://|tcp://)?(?:(?:[\\w-]+\\.)|(?:[*]\\.))+\\w+(?:\\
 
 // NewActor returns a new actor.
 func NewActor(v3Actor V7Actor, sharedActor SharedActor) *Actor {
+	fmt.Printf("actor/v7pushaction/actor.go: NewActor 1\n")
 	actor := &Actor{
 		SharedActor: sharedActor,
 		V7Actor:     v3Actor,

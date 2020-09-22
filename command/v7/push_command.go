@@ -109,20 +109,25 @@ type PushCommand struct {
 }
 
 func (cmd *PushCommand) Setup(config command.Config, ui command.UI) error {
+	fmt.Printf("push_command.go: Setup 1\n")
 	err := cmd.BaseCommand.Setup(config, ui)
 	if err != nil {
 		return err
 	}
 
 	cmd.ProgressBar = progressbar.NewProgressBar()
+	fmt.Printf("push_command.go: Setup 2\n")
 	cmd.VersionActor = cmd.Actor
+	fmt.Printf("push_command.go: Setup 3\n")
 	cmd.PushActor = v7pushaction.NewActor(cmd.Actor, sharedaction.NewActor(config))
+	fmt.Printf("push_command.go: Setup 4\n")
 
-	logCacheEndpoint, _, err := cmd.Actor.GetLogCacheEndpoint()
+	// logCacheEndpoint, _, err := cmd.Actor.GetLogCacheEndpoint()
+	fmt.Printf("push_command.go: Setup 5\n")
 	if err != nil {
 		return err
 	}
-	cmd.LogCacheClient = command.NewLogCacheClient(logCacheEndpoint, config, ui)
+	// cmd.LogCacheClient = command.NewLogCacheClient(logCacheEndpoint, config, ui)
 
 	currentDir, err := os.Getwd()
 	cmd.CWD = currentDir
@@ -130,74 +135,124 @@ func (cmd *PushCommand) Setup(config command.Config, ui command.UI) error {
 	cmd.ManifestLocator = manifestparser.NewLocator()
 	cmd.ManifestParser = manifestparser.ManifestParser{}
 
+	fmt.Printf("push_command.go: Setup 6\n")
 	return err
 }
 
 func (cmd PushCommand) Execute(args []string) error {
+	fmt.Printf("push_command.go: Execute 1\n")
 	cmd.stopStreamingFunc = nil
 	err := cmd.SharedActor.CheckTarget(true, true)
 	if err != nil {
+		fmt.Printf("push_command.go: Execute 2 err: %s\n", err.Error())
 		return err
 	}
 
 	user, err := cmd.Config.CurrentUser()
+	fmt.Printf("push_command.go: Execute 3\n")
 	if err != nil {
 		return err
 	}
 
 	flagOverrides, err := cmd.GetFlagOverrides()
+	fmt.Printf("push_command.go: Execute 4\n")
 	if err != nil {
 		return err
 	}
 
 	err = cmd.ValidateFlags()
+	fmt.Printf("push_command.go: Execute 5\n")
 	if err != nil {
 		return err
 	}
 
+	fmt.Printf("push_command.go: Execute 6\n")
 	baseManifest, err := cmd.GetBaseManifest(flagOverrides)
 	if err != nil {
 		return err
 	}
 
+	fmt.Printf("push_command.go: Execute 7 GetBaseManifest has processed the Manifest file and returned baseManifest\n")
 	transformedManifest, err := cmd.PushActor.HandleFlagOverrides(baseManifest, flagOverrides)
 	if err != nil {
 		return err
 	}
 
+	fmt.Printf("\npush_command.go: Execute 8 transformedManifest:\n %T, %+v\n\n", transformedManifest, transformedManifest)
 	flagOverrides.DockerPassword, err = cmd.GetDockerPassword(flagOverrides.DockerUsername, transformedManifest.ContainsPrivateDockerImages())
 	if err != nil {
 		return err
 	}
 
-	transformedRawManifest, err := cmd.ManifestParser.MarshalManifest(transformedManifest)
-	if err != nil {
-		return err
+	fmt.Printf("push_command.go: Execute 9\n")
+	// Here is where they Marshal the manifest into []byte
+	// This is where I might use my Marshal command on transformedManifest
+	// transformedRawManifest, err := cmd.ManifestParser.MarshalManifest(transformedManifest)
+	// if err != nil {
+	// 	return err
+	// }
+	// fmt.Printf("push_command.go 9.1 transformedRawManifest is: %v\n", transformedRawManifest)
+
+	// !!! KDH !!!
+
+	app := transformedManifest.Applications[0]
+
+	deployer, container := NewDeployment(app.Name, "repo-url")
+	deployer.DeploymentSpec.Replicas = *app.Instances
+
+	// Set Resource Constraints
+	// container.Resources.Requests.CPU = ??? PCF does not allow specification of CPU usage
+	// container.Resources.Limits.CPU = ??? PCF does not allow specification of CPU usage
+	container.Resources.Requests.Memory = app.Memory
+	container.Resources.Limits.Memory = app.Memory
+	container.Resources.Requests.EphemeralStorage = app.DiskQuota
+	container.Resources.Limits.EphemeralStorage = app.DiskQuota
+
+	// Set Env Vars
+	m := app.RemainingManifestFields["env"].(map[interface{}]interface{})
+	for k, v := range m {
+		container.AddEnv(k.(string), v)
 	}
 
+	// Set Liveness Probe
+	healthCheckType := app.HealthCheckType
+	if string(healthCheckType) == string(HTTPGetProbeType) {
+		// HealthCheckTimeout specifies how long to allow for the app to startup
+		// Periodic health check interval is hard coded to 30s in PCF.
+		container.AddLivenessProbe(HTTPGetProbeType, app.HealthCheckEndpoint, app.HealthCheckTimeout, 30)
+	}
+
+	// Marshal the Kubernetes Deployment YAML
+	fmt.Println(deployer.Marshal())
+
+	fmt.Printf("push_command.go: Execute 10\n")
 	cmd.announcePushing(transformedManifest.AppNames(), user)
 
 	hasManifest := transformedManifest.PathToManifest != ""
 
+	fmt.Printf("push_command.go: Execute 11\n")
 	if hasManifest {
 		cmd.UI.DisplayText("Applying manifest file {{.Path}}...", map[string]interface{}{
 			"Path": transformedManifest.PathToManifest,
 		})
 	}
 
-	v7ActionWarnings, err := cmd.VersionActor.SetSpaceManifest(
-		cmd.Config.TargetedSpace().GUID,
-		transformedRawManifest,
-	)
+	// fmt.Printf("push_command.go: Execute 12\n")
+	// v7ActionWarnings, err := cmd.VersionActor.SetSpaceManifest(
+	// 	cmd.Config.TargetedSpace().GUID,
+	// 	transformedRawManifest,
+	// )
 
-	cmd.UI.DisplayWarnings(v7ActionWarnings)
-	if err != nil {
-		return err
-	}
+	// fmt.Printf("push_command.go: Execute 13\n")
+	// cmd.UI.DisplayWarnings(v7ActionWarnings)
+	// if err != nil {
+	// 	return err
+	// }
 	if hasManifest {
 		cmd.UI.DisplayText("Manifest applied")
 	}
 
+	fmt.Printf("push_command.go: Execute 13\n")
 	pushPlans, warnings, err := cmd.PushActor.CreatePushPlans(
 		cmd.Config.TargetedSpace().GUID,
 		cmd.Config.TargetedOrganization().GUID,
@@ -241,6 +296,7 @@ func (cmd PushCommand) GetBaseManifest(flagOverrides v7pushaction.FlagOverrides)
 			{Name: flagOverrides.AppName},
 		},
 	}
+	fmt.Printf("push_command.go: GetBaseManifest 1 cmd.NoManifest: %t\n", cmd.NoManifest)
 	if cmd.NoManifest {
 		log.Debugf("No manifest given, generating manifest")
 		return defaultManifest, nil
@@ -248,23 +304,27 @@ func (cmd PushCommand) GetBaseManifest(flagOverrides v7pushaction.FlagOverrides)
 
 	log.Info("reading manifest if exists")
 	readPath := cmd.CWD
+	fmt.Printf("push_command.go: GetBaseManifest 2 readPath: %s flagOverrides.ManifestPath: %s\n", readPath, flagOverrides.ManifestPath)
 	if flagOverrides.ManifestPath != "" {
 		log.WithField("manifestPath", flagOverrides.ManifestPath).Debug("reading '-f' provided manifest")
 		readPath = flagOverrides.ManifestPath
 	}
 
 	pathToManifest, exists, err := cmd.ManifestLocator.Path(readPath)
+	fmt.Printf("push_command.go: GetBaseManifest 3 pathToManifest: %s exists: %t\n", pathToManifest, exists)
 	if err != nil {
 		return manifestparser.Manifest{}, err
 	}
 
 	if !exists {
+		fmt.Printf("push_command.go: GetBaseManifest 4 defaultManifest: %T\n", defaultManifest)
 		log.Debugf("No manifest given, generating manifest")
 		return defaultManifest, nil
 	}
 
 	log.WithField("manifestPath", pathToManifest).Debug("path to manifest")
 	manifest, err := cmd.ManifestParser.InterpolateAndParse(pathToManifest, flagOverrides.PathsToVarsFiles, flagOverrides.Vars)
+	fmt.Printf("push_command.go: GetBaseManifest 5 manifest: %T\n", manifest)
 	if err != nil {
 		log.Errorln("reading manifest:", err)
 		if _, ok := err.(*yaml.TypeError); ok {
@@ -272,6 +332,8 @@ func (cmd PushCommand) GetBaseManifest(flagOverrides v7pushaction.FlagOverrides)
 		}
 		return manifestparser.Manifest{}, err
 	}
+
+	fmt.Printf("push_command.go: GetBaseManifest 6.1 manifest: %s\n", manifest.Applications[0].Name)
 
 	return manifest, nil
 }

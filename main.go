@@ -37,6 +37,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	fmt.Println("main.go")
 	exitCode, err = p.ParseCommandFromArgs(commandUI, os.Args[1:])
 	if err == nil {
 		os.Exit(exitCode)
