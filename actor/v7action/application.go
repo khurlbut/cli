@@ -103,6 +103,7 @@ func (actor Actor) GetApplicationsByGUIDs(appGUIDs []string) ([]resources.Applic
 }
 
 func (actor Actor) GetApplicationsByNamesAndSpace(appNames []string, spaceGUID string) ([]resources.Application, Warnings, error) {
+	fmt.Printf("application.go GetApplicationByNamesAndSpace 1\n")
 	uniqueAppNames := map[string]bool{}
 	for _, appName := range appNames {
 		uniqueAppNames[appName] = true
