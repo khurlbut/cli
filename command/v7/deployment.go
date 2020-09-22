@@ -1,12 +1,19 @@
 package v7
 
 import (
+	"fmt"
 	"strings"
 
 	"gopkg.in/yaml.v2"
 )
 
 const version = "apps/v1"
+
+// LivenessProbeType string
+type LivenessProbeType string
+
+// HTTPGetProbeType LivenessProbeType
+const HTTPGetProbeType LivenessProbeType = "http"
 
 // NewDeployment constructer
 func NewDeployment(appName string, registryURL string) (*Deployment, *Container) {
@@ -120,13 +127,14 @@ func (s *Spec) doubleQuote() {
 
 // Container structure
 type Container struct {
-	Name      string `yaml:"name"`
-	Image     string `yaml:"image"`
-	Resources `yaml:"resources,omitempty"`
-	Envs      []Env    `yaml:"env,omitempty"`
-	Ports     []Port   `yaml:"ports,omitempty"`
-	Command   []string `yaml:"command,flow,omitempty"`
-	Args      []string `yaml:"args,flow,omitempty"`
+	Name          string `yaml:"name"`
+	Image         string `yaml:"image"`
+	Resources     `yaml:"resources,omitempty"`
+	Envs          []Env    `yaml:"env,omitempty"`
+	Ports         []Port   `yaml:"ports,omitempty"`
+	Command       []string `yaml:"command,flow,omitempty"`
+	Args          []string `yaml:"args,flow,omitempty"`
+	LivenessProbe `yaml:"livenessProbe,omitempty"`
 }
 
 // AddEnv and an Env
@@ -137,6 +145,17 @@ func (c *Container) AddEnv(n string, v interface{}) {
 	e := Env{}
 	e.setEnv(n, v)
 	c.Envs = append(c.Envs, e)
+}
+
+// AddLivenessProbe add a liveness probe
+func (c *Container) AddLivenessProbe(t LivenessProbeType, path string, initialDelay int64, period int64) Container {
+	if t != HTTPGetProbeType {
+		panic(fmt.Sprintf("Error: unsupported LivenessProbeType %s", t))
+	}
+	c.LivenessProbe.HTTPGet.Path = path
+	c.LivenessProbe.InitialDelaySeconds = initialDelay
+	c.LivenessProbe.PeriodSeconds = period
+	return *c
 }
 
 func (c *Container) doubleQuote() Container {
@@ -161,14 +180,16 @@ type Resources struct {
 
 // Limits structure
 type Limits struct {
-	CPU    string `yaml:"cpu,omitempty"`
-	Memory string `yaml:"memory"`
+	CPU              string `yaml:"cpu,omitempty"`
+	Memory           string `yaml:"memory"`
+	EphemeralStorage string `yaml:"ephemeral-storage"`
 }
 
 // Requests structure
 type Requests struct {
-	CPU    string `yaml:"cpu,omitempty"`
-	Memory string `yaml:"memory"`
+	CPU              string `yaml:"cpu,omitempty"`
+	Memory           string `yaml:"memory"`
+	EphemeralStorage string `yaml:"ephemeral-storage"`
 }
 
 // Env Structure
@@ -194,6 +215,26 @@ func (e *Env) setEnv(n string, v interface{}) Env {
 // Port structure
 type Port struct {
 	ContainerPort int `yaml:"containerPort"`
+}
+
+// LivenessProbe structure
+type LivenessProbe struct {
+	HTTPGet             `yaml:"httpGet,omitempty"`
+	InitialDelaySeconds int64 `yaml:"initialDelaySeconds,omitempty"`
+	PeriodSeconds       int64 `yaml:"periodSeconds,omitempty"`
+}
+
+// HTTPGet structure
+type HTTPGet struct {
+	Path         string       `yaml:"path,omitempty"`
+	ProbePort    int          `yaml:"port,omitempty"`
+	ProbeHeaders []HTTPHeader `yaml:"httpHeaders,omitempty"`
+}
+
+// HTTPHeader structure
+type HTTPHeader struct {
+	Name  string `yaml:"name"`
+	Value string `yaml:"value"`
 }
 
 func doubleQuote(b []byte) string {

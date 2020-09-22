@@ -1,12 +1,13 @@
 applications:
 - name: browse-controller-poc
-  instances: 1
+  instances: 3
   memory: 512M
   disk_quota: 1024M
   timeout: 60
   healthCheckTimeout: 600
   healthCheckInvocationTimeout: 5
-  healthCheckHttpEndpoint: '/buildnumber.json'
+  health-check-type: http
+  health-check-http-endpoint: '/buildnumber.json'
   env:
     ARTIFACT_VERSION: browse-controller-poc
     CF_ORG: PT-WebApps

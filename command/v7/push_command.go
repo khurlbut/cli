@@ -178,15 +178,15 @@ func (cmd PushCommand) Execute(args []string) error {
 		return err
 	}
 
-	fmt.Printf("push_command.go: Execute 8 transformedManifest: %v\n", transformedManifest)
+	fmt.Printf("\npush_command.go: Execute 8 transformedManifest:\n %T, %+v\n\n", transformedManifest, transformedManifest)
 	flagOverrides.DockerPassword, err = cmd.GetDockerPassword(flagOverrides.DockerUsername, transformedManifest.ContainsPrivateDockerImages())
 	if err != nil {
 		return err
 	}
 
 	// !!! KDH !!!
-	fmt.Printf("push_command.go: Execute 8.1 transformedManifest: %s\n", transformedManifest.Applications[0].Name)
 	appName := transformedManifest.Applications[0].Name
+	// !!! KDH !!!
 
 	// Here is where they Marshal the manifest into []byte
 	// This is where I might use my Marshal command on transformedManifest
@@ -196,33 +196,37 @@ func (cmd PushCommand) Execute(args []string) error {
 	// 	return err
 	// }
 	// fmt.Printf("push_command.go 9.1 transformedRawManifest is: %v\n", transformedRawManifest)
-	// !!! KDH !!!
 
+	app := transformedManifest.Applications[0]
+	fmt.Printf("\napp:\n %T, %+v\n\n", app, app)
 	deployer, container := NewDeployment(appName, "repo-url")
-	// fmt.Println(container)
-	m := transformedManifest.Applications[0].RemainingManifestFields["env"].(map[interface{}]interface{})
-	for k, v := range m {
-		fmt.Printf("adding env var to container: k,v %v, %v\n", k, v)
+	deployer.DeploymentSpec.Replicas = *app.Instances
 
-		// s, ok := v.(string)
-		// if !ok {
-		// 	b, ok := v.(bool)
-		// 	if ok {
-		// 		if b {
-		// 			s = "true"
-		// 		} else {
-		// 			s = "false"
-		// 		}
-		// 	} else {
-		// 		i, ok := v.(int)
-		// 		if ok {}
-		// 		s = string(i)
-		// 	} else {
-		// 		panic(fmt.Sprintf("unknown value type: %v", v))
-		// 	}
-		// }
+	// Set Resource Constraints
+	container.Resources.Requests.Memory = transformedManifest.Applications[0].Memory
+	container.Resources.Limits.Memory = app.Memory
+	container.Resources.Requests.EphemeralStorage = app.DiskQuota
+	container.Resources.Limits.EphemeralStorage = app.DiskQuota
+
+	// Set Env Vars
+	m := app.RemainingManifestFields["env"].(map[interface{}]interface{})
+	for k, v := range m {
 		container.AddEnv(k.(string), v)
 	}
+
+	// Set Liveness Probe
+	healthCheckType := app.HealthCheckType
+	if string(healthCheckType) == string(HTTPGetProbeType) {
+		// HealthCheckTimeout specifies how long to allow for the app to startup
+		// Periodic health check interval defaults to 30s in PCF.
+		container.AddLivenessProbe(HTTPGetProbeType, app.HealthCheckEndpoint, app.HealthCheckTimeout, 30)
+	}
+
+	// KDH: The sample manifest.yaml file I'm looking at from browse-controller
+	//      has what appears to be bad health check keys.
+	//      Revisit setting Liveness Probes from manifest when we have better input.
+	// deployer.DeploymentSpec.Containers[0].LivenessProbe.HTTPGet.Path = app.HealthCheckHTTPEndpoint
+	// deployer.DeploymentSpec.Containers[0].LivenessProbe.PeriodSeconds = app.delay
 	fmt.Println(deployer.Marshal())
 
 	fmt.Printf("push_command.go: Execute 10\n")
