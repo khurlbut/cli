@@ -37,11 +37,7 @@ func main() {
 		os.Exit(1)
 	}
 
-<<<<<<< HEAD
-	fmt.Println("main.go")
-=======
 	fmt.Printf("/main.go 1 commandUI: %T Args[1:]: %#v\n", *commandUI, os.Args[1:])
->>>>>>> v7
 	exitCode, err = p.ParseCommandFromArgs(commandUI, os.Args[1:])
 	fmt.Printf("/main.go 2 returned from ParseCommandFromArgs\n")
 	if err == nil {

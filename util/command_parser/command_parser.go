@@ -92,11 +92,7 @@ func (p *CommandParser) executionWrapper(cmd flags.Commander, args []string) err
 		log.SetLevel(log.Level(cfConfig.LogLevel()))
 
 		err = extendedCmd.Setup(cfConfig, p.UI)
-<<<<<<< HEAD
-		fmt.Printf("command_parser.go executionWrapper 3 err:%v\n", err)
-=======
 		fmt.Printf("command_parser.go executionWrapper 3\n")
->>>>>>> v7
 		if err != nil {
 			return p.handleError(err)
 		}
