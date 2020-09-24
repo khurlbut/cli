@@ -121,9 +121,9 @@ func (resources ResourceLinks) UnmarshalJSON(data []byte) error {
 
 // GetInfo returns endpoint and API information from /v3.
 func (client *Client) GetInfo() (Info, ResourceLinks, Warnings, error) {
-	fmt.Printf("api/cloudcontroller/ccv1/info.go GetInfo 1\n")
+	fmt.Printf("api/cloudcontroller/ccv3/info.go GetInfo 1\n")
 	rootResponse, warnings, err := client.RootResponse()
-	fmt.Printf("api/cloudcontroller/ccv1/info.go GetInfo 2 err: %s\n", err.Error())
+	fmt.Printf("api/cloudcontroller/ccv3/info.go GetInfo 2 err: %s\n", err.Error())
 	if err != nil {
 		return Info{}, ResourceLinks{}, warnings, err
 	}
@@ -141,7 +141,7 @@ func (client *Client) GetInfo() (Info, ResourceLinks, Warnings, error) {
 
 }
 
-// rootResponse returns the CC API root document.
+// RootResponse returns the CC API root document.
 func (client *Client) RootResponse() (Info, Warnings, error) {
 	fmt.Printf("api/cloudcontroller/ccv3/info.go RootResponse 1\n")
 	var responseBody Info
@@ -153,7 +153,7 @@ func (client *Client) RootResponse() (Info, Warnings, error) {
 	fmt.Printf("api/cloudcontroller/ccv3/info.go RootResponse 2 err: %s\n", err.Error())
 
 	unknownSourceErr, ok := err.(ccerror.UnknownHTTPSourceError)
-	fmt.Printf("api/cloudcontroller/ccv3/info.go RootResponse 3 ok: %b err: %s\n", ok, err.Error())
+	fmt.Printf("api/cloudcontroller/ccv3/info.go RootResponse 3 ok: %t err: %s\n", ok, err.Error())
 	if ok && unknownSourceErr.StatusCode == http.StatusNotFound {
 		return Info{}, nil, ccerror.APINotFoundError{URL: client.CloudControllerURL}
 	}

@@ -14,7 +14,8 @@ var ShouldFallbackToLegacy = false
 type commandList struct {
 	VerboseOrVersion bool `short:"v" long:"version" description:"verbose and version flag"`
 
-	V3Push v7.PushCommand `command:"v3-push" description:"Push a new app or sync changes to an existing app" hidden:"true"`
+	V3Push v7.PushCommand   `command:"v3-push" description:"Push a new app or sync changes to an existing app" hidden:"true"`
+	K8Push v7.K8PushCommand `command:"pushk8" alias:"pk8" description:"Push a new app or sync changes to an existing app" hidden:"true"`
 
 	API                                v7.APICommand                                `command:"api" description:"Set or view target api url"`
 	AddNetworkPolicy                   v7.AddNetworkPolicyCommand                   `command:"add-network-policy" description:"Create policy to allow direct network traffic from one app to another"`

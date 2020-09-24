@@ -1,14 +1,14 @@
 package v7
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
 
+	"yaml-gapinc/kubernetes/deploy"
+
 	"code.cloudfoundry.org/cli/actor/actionerror"
 	"code.cloudfoundry.org/cli/actor/sharedaction"
-	"code.cloudfoundry.org/cli/actor/v7action"
 	"code.cloudfoundry.org/cli/actor/v7pushaction"
 	"code.cloudfoundry.org/cli/api/cloudcontroller/ccv3/constant"
 	"code.cloudfoundry.org/cli/cf/errors"
@@ -16,7 +16,6 @@ import (
 	"code.cloudfoundry.org/cli/command/flag"
 	"code.cloudfoundry.org/cli/command/translatableerror"
 	"code.cloudfoundry.org/cli/command/v7/shared"
-	"code.cloudfoundry.org/cli/resources"
 	"code.cloudfoundry.org/cli/util/configv3"
 	"code.cloudfoundry.org/cli/util/manifestparser"
 	"code.cloudfoundry.org/cli/util/progressbar"
@@ -25,47 +24,8 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-//go:generate counterfeiter . ProgressBar
-
-type ProgressBar interface {
-	v7pushaction.ProgressBar
-	Complete()
-	Ready()
-}
-
-//go:generate counterfeiter . PushActor
-
-type PushActor interface {
-	HandleFlagOverrides(baseManifest manifestparser.Manifest, flagOverrides v7pushaction.FlagOverrides) (manifestparser.Manifest, error)
-	CreatePushPlans(spaceGUID string, orgGUID string, manifest manifestparser.Manifest, overrides v7pushaction.FlagOverrides) ([]v7pushaction.PushPlan, v7action.Warnings, error)
-	// Actualize applies any necessary changes.
-	Actualize(plan v7pushaction.PushPlan, progressBar v7pushaction.ProgressBar) <-chan *v7pushaction.PushEvent
-}
-
-//go:generate counterfeiter . V7ActorForPush
-
-type V7ActorForPush interface {
-	GetApplicationByNameAndSpace(name string, spaceGUID string) (resources.Application, v7action.Warnings, error)
-	GetDetailedAppSummary(appName string, spaceGUID string, withObfuscatedValues bool) (v7action.DetailedApplicationSummary, v7action.Warnings, error)
-	SetSpaceManifest(spaceGUID string, rawManifest []byte) (v7action.Warnings, error)
-	GetStreamingLogsForApplicationByNameAndSpace(appName string, spaceGUID string, client sharedaction.LogCacheClient) (<-chan sharedaction.LogMessage, <-chan error, context.CancelFunc, v7action.Warnings, error)
-	RestartApplication(appGUID string, noWait bool) (v7action.Warnings, error)
-}
-
-//go:generate counterfeiter . ManifestParser
-
-type ManifestParser interface {
-	InterpolateAndParse(pathToManifest string, pathsToVarsFiles []string, vars []template.VarKV) (manifestparser.Manifest, error)
-	MarshalManifest(manifest manifestparser.Manifest) ([]byte, error)
-}
-
-//go:generate counterfeiter . ManifestLocator
-
-type ManifestLocator interface {
-	Path(filepathOrDirectory string) (string, bool, error)
-}
-
-type PushCommand struct {
+// K8PushCommand structure
+type K8PushCommand struct {
 	BaseCommand
 
 	OptionalArgs            flag.OptionalAppName                `positional-args:"yes"`
@@ -108,22 +68,19 @@ type PushCommand struct {
 	stopStreamingFunc func()
 }
 
-func (cmd *PushCommand) Setup(config command.Config, ui command.UI) error {
-	fmt.Printf("push_command.go: Setup 1\n")
+// Setup invoked by flag manager
+func (cmd *K8PushCommand) Setup(config command.Config, ui command.UI) error {
+	fmt.Printf("push_command_k8s.go: Setup entering\n")
 	err := cmd.BaseCommand.Setup(config, ui)
 	if err != nil {
 		return err
 	}
 
 	cmd.ProgressBar = progressbar.NewProgressBar()
-	fmt.Printf("push_command.go: Setup 2\n")
 	cmd.VersionActor = cmd.Actor
-	fmt.Printf("push_command.go: Setup 3\n")
 	cmd.PushActor = v7pushaction.NewActor(cmd.Actor, sharedaction.NewActor(config))
-	fmt.Printf("push_command.go: Setup 4\n")
 
 	// logCacheEndpoint, _, err := cmd.Actor.GetLogCacheEndpoint()
-	fmt.Printf("push_command.go: Setup 5\n")
 	if err != nil {
 		return err
 	}
@@ -135,77 +92,66 @@ func (cmd *PushCommand) Setup(config command.Config, ui command.UI) error {
 	cmd.ManifestLocator = manifestparser.NewLocator()
 	cmd.ManifestParser = manifestparser.ManifestParser{}
 
-	fmt.Printf("push_command.go: Setup 6\n")
+	fmt.Printf("push_command_k8s.go: Setup returning\n")
 	return err
 }
 
-func (cmd PushCommand) Execute(args []string) error {
-	fmt.Printf("push_command.go: Execute 1\n")
+// Execute invoked by flag manager
+func (cmd K8PushCommand) Execute(args []string) error {
+	fmt.Printf("push_command_k8s.go: Execute entering\n")
 	cmd.stopStreamingFunc = nil
 	err := cmd.SharedActor.CheckTarget(true, true)
 	if err != nil {
-		fmt.Printf("push_command.go: Execute 2 err: %s\n", err.Error())
 		return err
 	}
 
 	user, err := cmd.Config.CurrentUser()
-	fmt.Printf("push_command.go: Execute 3\n")
 	if err != nil {
 		return err
 	}
 
 	flagOverrides, err := cmd.GetFlagOverrides()
-	fmt.Printf("push_command.go: Execute 4\n")
 	if err != nil {
 		return err
 	}
 
 	err = cmd.ValidateFlags()
-	fmt.Printf("push_command.go: Execute 5\n")
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("push_command.go: Execute 6\n")
 	baseManifest, err := cmd.GetBaseManifest(flagOverrides)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("push_command.go: Execute 7 GetBaseManifest has processed the Manifest file and returned baseManifest\n")
 	transformedManifest, err := cmd.PushActor.HandleFlagOverrides(baseManifest, flagOverrides)
 	if err != nil {
 		return err
 	}
 
-<<<<<<< HEAD
-	fmt.Printf("\npush_command.go: Execute 8 transformedManifest:\n %T, %+v\n\n", transformedManifest, transformedManifest)
-=======
-	fmt.Printf("\npush_command.go: Execute 8\n")
->>>>>>> v7
 	flagOverrides.DockerPassword, err = cmd.GetDockerPassword(flagOverrides.DockerUsername, transformedManifest.ContainsPrivateDockerImages())
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("push_command.go: Execute 9\n")
-	// Here is where they Marshal the manifest into []byte
-	// This is where I might use my Marshal command on transformedManifest
+	fmt.Printf("push_command_k8s.go: Execute - transforming pcf manifest to k8s manifest\n")
+
+	// baseManifest: manifest object from either file or default values
+	// transformedManifest: baseManifest with all of the adjustments
+	// transformedRawManifest: transformedManifest marshalled into []bytes
+
 	// transformedRawManifest, err := cmd.ManifestParser.MarshalManifest(transformedManifest)
 	// if err != nil {
 	// 	return err
 	// }
-	// fmt.Printf("push_command.go 9.1 transformedRawManifest is: %v\n", transformedRawManifest)
+	// fmt.Printf("push_command_k8s.go 9.1 transformedRawManifest is: %v\n", transformedRawManifest)
 
-	// !!! KDH !!!
-
-<<<<<<< HEAD
 	app := transformedManifest.Applications[0]
 
-	deployer, container := NewDeployment(app.Name, "repo-url")
+	deployer, container := deploy.NewDeployment(app.Name, "repo-url")
 	deployer.DeploymentSpec.Replicas = *app.Instances
 
-	// Set Resource Constraints
 	// container.Resources.Requests.CPU = ??? PCF does not allow specification of CPU usage
 	// container.Resources.Limits.CPU = ??? PCF does not allow specification of CPU usage
 	container.Resources.Requests.Memory = app.Memory
@@ -213,82 +159,39 @@ func (cmd PushCommand) Execute(args []string) error {
 	container.Resources.Requests.EphemeralStorage = app.DiskQuota
 	container.Resources.Limits.EphemeralStorage = app.DiskQuota
 
-	// Set Env Vars
 	m := app.RemainingManifestFields["env"].(map[interface{}]interface{})
 	for k, v := range m {
 		container.AddEnv(k.(string), v)
 	}
 
-	// Set Liveness Probe
 	healthCheckType := app.HealthCheckType
-	if string(healthCheckType) == string(HTTPGetProbeType) {
+	if string(healthCheckType) == string(deploy.HTTPGetProbeType) {
 		// HealthCheckTimeout specifies how long to allow for the app to startup
 		// Periodic health check interval is hard coded to 30s in PCF.
-		container.AddLivenessProbe(HTTPGetProbeType, app.HealthCheckEndpoint, app.HealthCheckTimeout, 30)
+		container.AddLivenessProbe(deploy.HTTPGetProbeType, app.HealthCheckEndpoint, app.HealthCheckTimeout, 30)
 	}
 
 	// Marshal the Kubernetes Deployment YAML
 	fmt.Println(deployer.Marshal())
-=======
-	// app := transformedManifest.Applications[0]
 
-	// deployer, container := NewDeployment(app.Name, "repo-url")
-	// deployer.DeploymentSpec.Replicas = *app.Instances
-
-	// // Set Resource Constraints
-	// // container.Resources.Requests.CPU = ??? PCF does not allow specification of CPU usage
-	// // container.Resources.Limits.CPU = ??? PCF does not allow specification of CPU usage
-	// container.Resources.Requests.Memory = app.Memory
-	// container.Resources.Limits.Memory = app.Memory
-	// container.Resources.Requests.EphemeralStorage = app.DiskQuota
-	// container.Resources.Limits.EphemeralStorage = app.DiskQuota
-
-	// // Set Env Vars
-	// m := app.RemainingManifestFields["env"].(map[interface{}]interface{})
-	// for k, v := range m {
-	// 	container.AddEnv(k.(string), v)
-	// }
-
-	// // Set Liveness Probe
-	// healthCheckType := app.HealthCheckType
-	// if string(healthCheckType) == string(HTTPGetProbeType) {
-	// 	// HealthCheckTimeout specifies how long to allow for the app to startup
-	// 	// Periodic health check interval is hard coded to 30s in PCF.
-	// 	container.AddLivenessProbe(HTTPGetProbeType, app.HealthCheckEndpoint, app.HealthCheckTimeout, 30)
-	// }
-
-	// // Marshal the Kubernetes Deployment YAML
-	// fmt.Println(deployer.Marshal())
->>>>>>> v7
-
-	fmt.Printf("push_command.go: Execute 10\n")
 	cmd.announcePushing(transformedManifest.AppNames(), user)
 
 	hasManifest := transformedManifest.PathToManifest != ""
 
-<<<<<<< HEAD
-	fmt.Printf("push_command.go: Execute 11\n")
+	fmt.Printf("push_command_k8s.go: Execute 11\n")
 	if hasManifest {
 		cmd.UI.DisplayText("Applying manifest file {{.Path}}...", map[string]interface{}{
 			"Path": transformedManifest.PathToManifest,
 		})
 	}
-=======
-	// fmt.Printf("push_command.go: Execute 11\n")
-	// if hasManifest {
-	// 	cmd.UI.DisplayText("Applying manifest file {{.Path}}...", map[string]interface{}{
-	// 		"Path": transformedManifest.PathToManifest,
-	// 	})
-	// }
->>>>>>> v7
 
-	// fmt.Printf("push_command.go: Execute 12\n")
+	// fmt.Printf("push_command_k8s.go: Execute 12\n")
 	// v7ActionWarnings, err := cmd.VersionActor.SetSpaceManifest(
 	// 	cmd.Config.TargetedSpace().GUID,
 	// 	transformedRawManifest,
 	// )
 
-	// fmt.Printf("push_command.go: Execute 13\n")
+	// fmt.Printf("push_command_k8s.go: Execute 13\n")
 	// cmd.UI.DisplayWarnings(v7ActionWarnings)
 	// if err != nil {
 	// 	return err
@@ -297,7 +200,7 @@ func (cmd PushCommand) Execute(args []string) error {
 		cmd.UI.DisplayText("Manifest applied")
 	}
 
-	fmt.Printf("push_command.go: Execute 13\n")
+	fmt.Printf("push_command_k8s.go: Execute 14\n")
 	pushPlans, warnings, err := cmd.PushActor.CreatePushPlans(
 		cmd.Config.TargetedSpace().GUID,
 		cmd.Config.TargetedOrganization().GUID,
@@ -305,10 +208,12 @@ func (cmd PushCommand) Execute(args []string) error {
 		flagOverrides,
 	)
 	cmd.UI.DisplayWarnings(warnings)
+	fmt.Printf("push_command_k8s.go: Execute 15\n")
 	if err != nil {
 		return err
 	}
 
+	fmt.Printf("push_command_k8s.go: Execute 16\n")
 	log.WithField("number of plans", len(pushPlans)).Debug("completed generating plan")
 	defer func() {
 		if cmd.stopStreamingFunc != nil {
@@ -316,6 +221,7 @@ func (cmd PushCommand) Execute(args []string) error {
 		}
 	}()
 
+	fmt.Printf("push_command_k8s.go: Execute 17\n")
 	for _, plan := range pushPlans {
 		log.WithField("app_name", plan.Application.Name).Info("actualizing")
 		eventStream := cmd.PushActor.Actualize(plan, cmd.ProgressBar)
@@ -332,16 +238,18 @@ func (cmd PushCommand) Execute(args []string) error {
 		}
 	}
 
+	fmt.Printf("push_command_k8s.go: Execute returning\n")
 	return nil
 }
 
-func (cmd PushCommand) GetBaseManifest(flagOverrides v7pushaction.FlagOverrides) (manifestparser.Manifest, error) {
+// GetBaseManifest method
+func (cmd K8PushCommand) GetBaseManifest(flagOverrides v7pushaction.FlagOverrides) (manifestparser.Manifest, error) {
 	defaultManifest := manifestparser.Manifest{
 		Applications: []manifestparser.Application{
 			{Name: flagOverrides.AppName},
 		},
 	}
-	fmt.Printf("push_command.go: GetBaseManifest 1 cmd.NoManifest: %t\n", cmd.NoManifest)
+	fmt.Printf("push_command_k8s.go: GetBaseManifest 1 cmd.NoManifest: %t\n", cmd.NoManifest)
 	if cmd.NoManifest {
 		log.Debugf("No manifest given, generating manifest")
 		return defaultManifest, nil
@@ -349,27 +257,27 @@ func (cmd PushCommand) GetBaseManifest(flagOverrides v7pushaction.FlagOverrides)
 
 	log.Info("reading manifest if exists")
 	readPath := cmd.CWD
-	fmt.Printf("push_command.go: GetBaseManifest 2 readPath: %s flagOverrides.ManifestPath: %s\n", readPath, flagOverrides.ManifestPath)
+	fmt.Printf("push_command_k8s.go: GetBaseManifest 2 readPath: %s flagOverrides.ManifestPath: %s\n", readPath, flagOverrides.ManifestPath)
 	if flagOverrides.ManifestPath != "" {
 		log.WithField("manifestPath", flagOverrides.ManifestPath).Debug("reading '-f' provided manifest")
 		readPath = flagOverrides.ManifestPath
 	}
 
 	pathToManifest, exists, err := cmd.ManifestLocator.Path(readPath)
-	fmt.Printf("push_command.go: GetBaseManifest 3 pathToManifest: %s exists: %t\n", pathToManifest, exists)
+	fmt.Printf("push_command_k8s.go: GetBaseManifest 3 pathToManifest: %s exists: %t\n", pathToManifest, exists)
 	if err != nil {
 		return manifestparser.Manifest{}, err
 	}
 
 	if !exists {
-		fmt.Printf("push_command.go: GetBaseManifest 4 defaultManifest: %T\n", defaultManifest)
+		fmt.Printf("push_command_k8s.go: GetBaseManifest 4 defaultManifest: %T\n", defaultManifest)
 		log.Debugf("No manifest given, generating manifest")
 		return defaultManifest, nil
 	}
 
 	log.WithField("manifestPath", pathToManifest).Debug("path to manifest")
 	manifest, err := cmd.ManifestParser.InterpolateAndParse(pathToManifest, flagOverrides.PathsToVarsFiles, flagOverrides.Vars)
-	fmt.Printf("push_command.go: GetBaseManifest 5 manifest: %T\n", manifest)
+	fmt.Printf("push_command_k8s.go: GetBaseManifest 5 manifest: %T\n", manifest)
 	if err != nil {
 		log.Errorln("reading manifest:", err)
 		if _, ok := err.(*yaml.TypeError); ok {
@@ -378,12 +286,12 @@ func (cmd PushCommand) GetBaseManifest(flagOverrides v7pushaction.FlagOverrides)
 		return manifestparser.Manifest{}, err
 	}
 
-	fmt.Printf("push_command.go: GetBaseManifest 6.1 manifest: %s\n", manifest.Applications[0].Name)
+	fmt.Printf("push_command_k8s.go: GetBaseManifest 6.1 manifest: %s\n", manifest.Applications[0].Name)
 
 	return manifest, nil
 }
 
-func (cmd PushCommand) GetDockerPassword(dockerUsername string, containsPrivateDockerImages bool) (string, error) {
+func (cmd K8PushCommand) GetDockerPassword(dockerUsername string, containsPrivateDockerImages bool) (string, error) {
 	if dockerUsername == "" && !containsPrivateDockerImages { // no need for a password without a username
 		return "", nil
 	}
@@ -397,7 +305,7 @@ func (cmd PushCommand) GetDockerPassword(dockerUsername string, containsPrivateD
 	return cmd.Config.DockerPassword(), nil
 }
 
-func (cmd PushCommand) GetFlagOverrides() (v7pushaction.FlagOverrides, error) {
+func (cmd K8PushCommand) GetFlagOverrides() (v7pushaction.FlagOverrides, error) {
 	var pathsToVarsFiles []string
 	for _, varFilePath := range cmd.PathsToVarsFiles {
 		pathsToVarsFiles = append(pathsToVarsFiles, string(varFilePath))
@@ -431,7 +339,7 @@ func (cmd PushCommand) GetFlagOverrides() (v7pushaction.FlagOverrides, error) {
 	}, nil
 }
 
-func (cmd PushCommand) ValidateFlags() error {
+func (cmd K8PushCommand) ValidateFlags() error {
 	switch {
 	case cmd.DockerUsername != "" && cmd.DockerImage.Path == "":
 		return translatableerror.RequiredFlagsError{
@@ -541,7 +449,7 @@ func (cmd PushCommand) ValidateFlags() error {
 	return nil
 }
 
-func (cmd PushCommand) validBuildpacks() bool {
+func (cmd K8PushCommand) validBuildpacks() bool {
 	for _, buildpack := range cmd.Buildpacks {
 		if (buildpack == "null" || buildpack == "default") && len(cmd.Buildpacks) > 1 {
 			return false
@@ -550,7 +458,7 @@ func (cmd PushCommand) validBuildpacks() bool {
 	return true
 }
 
-func (cmd PushCommand) shouldDisplaySummary(err error) bool {
+func (cmd K8PushCommand) shouldDisplaySummary(err error) bool {
 	if err == nil {
 		return true
 	}
@@ -558,7 +466,7 @@ func (cmd PushCommand) shouldDisplaySummary(err error) bool {
 	return ok
 }
 
-func (cmd PushCommand) mapErr(appName string, err error) error {
+func (cmd K8PushCommand) mapErr(appName string, err error) error {
 	switch err.(type) {
 	case actionerror.AllInstancesCrashedError:
 		return translatableerror.ApplicationUnableToStartError{
@@ -574,7 +482,7 @@ func (cmd PushCommand) mapErr(appName string, err error) error {
 	return err
 }
 
-func (cmd PushCommand) announcePushing(appNames []string, user configv3.User) {
+func (cmd K8PushCommand) announcePushing(appNames []string, user configv3.User) {
 	tokens := map[string]interface{}{
 		"AppName":   strings.Join(appNames, ", "),
 		"OrgName":   cmd.Config.TargetedOrganization().Name,
@@ -591,7 +499,7 @@ func (cmd PushCommand) announcePushing(appNames []string, user configv3.User) {
 	}
 }
 
-func (cmd PushCommand) displayAppSummary(plan v7pushaction.PushPlan) error {
+func (cmd K8PushCommand) displayAppSummary(plan v7pushaction.PushPlan) error {
 	log.Info("getting application summary info")
 	summary, warnings, err := cmd.VersionActor.GetDetailedAppSummary(
 		plan.Application.Name,
@@ -608,7 +516,7 @@ func (cmd PushCommand) displayAppSummary(plan v7pushaction.PushPlan) error {
 	return nil
 }
 
-func (cmd *PushCommand) eventStreamHandler(eventStream <-chan *v7pushaction.PushEvent) error {
+func (cmd *K8PushCommand) eventStreamHandler(eventStream <-chan *v7pushaction.PushEvent) error {
 	for event := range eventStream {
 		cmd.UI.DisplayWarnings(event.Warnings)
 		if event.Err != nil {
@@ -622,7 +530,7 @@ func (cmd *PushCommand) eventStreamHandler(eventStream <-chan *v7pushaction.Push
 	return nil
 }
 
-func (cmd *PushCommand) processEvent(event v7pushaction.Event, appName string) error {
+func (cmd *K8PushCommand) processEvent(event v7pushaction.Event, appName string) error {
 	switch event {
 	case v7pushaction.CreatingArchive:
 		cmd.UI.DisplayText("Packaging files to upload...")
@@ -699,7 +607,7 @@ func (cmd *PushCommand) processEvent(event v7pushaction.Event, appName string) e
 	return nil
 }
 
-func (cmd PushCommand) getLogs(logStream <-chan sharedaction.LogMessage, errStream <-chan error) {
+func (cmd K8PushCommand) getLogs(logStream <-chan sharedaction.LogMessage, errStream <-chan error) {
 	for {
 		select {
 		case logMessage, open := <-logStream:

@@ -1,6 +1,6 @@
 
 alias b='make build'
-alias r='out/cf'
+alias r='out/cf pk8'
 
 alias prune='docker system prune'
 
