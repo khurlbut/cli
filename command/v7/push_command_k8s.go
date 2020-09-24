@@ -135,7 +135,7 @@ func (cmd K8PushCommand) Execute(args []string) error {
 		return err
 	}
 
-	fmt.Printf("push_command_k8s.go: Execute - transforming pcf manifest to k8s manifest\n")
+	fmt.Printf("push_command_k8s.go: Execute transformingManifest:\n--- %+v\n---", transformedManifest)
 
 	// baseManifest: manifest object from either file or default values
 	// transformedManifest: baseManifest with all of the adjustments
@@ -150,18 +150,28 @@ func (cmd K8PushCommand) Execute(args []string) error {
 	app := transformedManifest.Applications[0]
 
 	deployer, container := deploy.NewDeployment(app.Name, "repo-url")
-	deployer.DeploymentSpec.Replicas = *app.Instances
+	if app.Instances != nil {
+		deployer.DeploymentSpec.Replicas = *app.Instances
+	} else {
+		deployer.DeploymentSpec.Replicas = 1
+	}
 
 	// container.Resources.Requests.CPU = ??? PCF does not allow specification of CPU usage
 	// container.Resources.Limits.CPU = ??? PCF does not allow specification of CPU usage
-	container.Resources.Requests.Memory = app.Memory
-	container.Resources.Limits.Memory = app.Memory
-	container.Resources.Requests.EphemeralStorage = app.DiskQuota
-	container.Resources.Limits.EphemeralStorage = app.DiskQuota
+	if &app.Memory != nil {
+		container.Resources.Requests.Memory = app.Memory
+		container.Resources.Limits.Memory = app.Memory
+	}
+	if &app.DiskQuota != nil {
+		container.Resources.Requests.EphemeralStorage = app.DiskQuota
+		container.Resources.Limits.EphemeralStorage = app.DiskQuota
+	}
 
-	m := app.RemainingManifestFields["env"].(map[interface{}]interface{})
-	for k, v := range m {
-		container.AddEnv(k.(string), v)
+	if app.RemainingManifestFields != nil {
+		m := app.RemainingManifestFields["env"].(map[interface{}]interface{})
+		for k, v := range m {
+			container.AddEnv(k.(string), v)
+		}
 	}
 
 	healthCheckType := app.HealthCheckType
