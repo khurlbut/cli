@@ -37,11 +37,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	fmt.Printf("/main.go 1 commandUI: %T Args[1:]: %#v\n", *commandUI, os.Args[1:])
 	exitCode, err = p.ParseCommandFromArgs(commandUI, os.Args[1:])
+	fmt.Printf("/main.go 2 returned from ParseCommandFromArgs\n")
 	if err == nil {
+		fmt.Printf("/main.go 3 no errors --> exiting (by design)!\n")
 		os.Exit(exitCode)
 	}
 
+	fmt.Printf("\n --- handling errors and error messaging ---\n")
 	if unknownCommandError, ok := err.(command_parser.UnknownCommandError); ok {
 		plugin, commandIsPlugin := plugin_util.IsPluginCommand(os.Args[1:])
 

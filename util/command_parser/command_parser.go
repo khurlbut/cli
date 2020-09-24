@@ -58,6 +58,7 @@ func (p *CommandParser) ParseCommandFromArgs(ui *ui.UI, args []string) (int, err
 }
 
 func (p *CommandParser) executionWrapper(cmd flags.Commander, args []string) error {
+	fmt.Printf("command_parser.go executionWrapper 1\n")
 	cfConfig := p.Config
 	cfConfig.Flags = configv3.FlagOverride{
 		Verbose: common.Commands.VerboseOrVersion,
@@ -82,18 +83,22 @@ func (p *CommandParser) executionWrapper(cmd flags.Commander, args []string) err
 	}()
 
 	if extendedCmd, ok := cmd.(command.ExtendedCommander); ok {
+		fmt.Printf("command_parser.go executionWrapper 2 extendedCmd: %T\n", extendedCmd)
 		log.SetOutput(os.Stderr)
 		log.SetLevel(log.Level(cfConfig.LogLevel()))
 
 		err = extendedCmd.Setup(cfConfig, p.UI)
+		fmt.Printf("command_parser.go executionWrapper 3\n")
 		if err != nil {
 			return p.handleError(err)
 		}
 
+		fmt.Printf("command_parser.go executionWrapper 4\n")
 		err = extendedCmd.Execute(args)
 		return p.handleError(err)
 	}
 
+	fmt.Printf("command_parser.go executionWrapper 5\n")
 	return fmt.Errorf("command does not conform to ExtendedCommander")
 }
 
