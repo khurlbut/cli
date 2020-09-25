@@ -26,7 +26,7 @@ import (
 
 // K8PushCommand structure
 type K8PushCommand struct {
-	BaseCommand
+	K8BaseCommand
 
 	OptionalArgs            flag.OptionalAppName                `positional-args:"yes"`
 	HealthCheckTimeout      flag.PositiveInteger                `long:"app-start-timeout" short:"t" description:"Time (in seconds) allowed to elapse between starting up an app and the first healthy response from the app"`
@@ -71,7 +71,7 @@ type K8PushCommand struct {
 // Setup invoked by flag manager
 func (cmd *K8PushCommand) Setup(config command.Config, ui command.UI) error {
 	fmt.Printf("push_command_k8s.go: Setup entering\n")
-	err := cmd.BaseCommand.Setup(config, ui)
+	err := cmd.K8BaseCommand.Setup(config, ui)
 	if err != nil {
 		return err
 	}
@@ -79,12 +79,6 @@ func (cmd *K8PushCommand) Setup(config command.Config, ui command.UI) error {
 	cmd.ProgressBar = progressbar.NewProgressBar()
 	cmd.VersionActor = cmd.Actor
 	cmd.PushActor = v7pushaction.NewActor(cmd.Actor, sharedaction.NewActor(config))
-
-	// logCacheEndpoint, _, err := cmd.Actor.GetLogCacheEndpoint()
-	if err != nil {
-		return err
-	}
-	// cmd.LogCacheClient = command.NewLogCacheClient(logCacheEndpoint, config, ui)
 
 	currentDir, err := os.Getwd()
 	cmd.CWD = currentDir
@@ -152,8 +146,6 @@ func (cmd K8PushCommand) Execute(args []string) error {
 	deployer, container := deploy.NewDeployment(app.Name, "repo-url")
 	if app.Instances != nil {
 		deployer.DeploymentSpec.Replicas = *app.Instances
-	} else {
-		deployer.DeploymentSpec.Replicas = 1
 	}
 
 	// container.Resources.Requests.CPU = ??? PCF does not allow specification of CPU usage
@@ -212,8 +204,10 @@ func (cmd K8PushCommand) Execute(args []string) error {
 
 	fmt.Printf("push_command_k8s.go: Execute 14\n")
 	pushPlans, warnings, err := cmd.PushActor.CreatePushPlans(
-		cmd.Config.TargetedSpace().GUID,
-		cmd.Config.TargetedOrganization().GUID,
+		// cmd.Config.TargetedSpace().GUID,
+		// cmd.Config.TargetedOrganization().GUID,
+		"SpaceGUID",
+		"OrgGUID",
 		transformedManifest,
 		flagOverrides,
 	)
@@ -224,6 +218,7 @@ func (cmd K8PushCommand) Execute(args []string) error {
 	}
 
 	fmt.Printf("push_command_k8s.go: Execute 16\n")
+	fmt.Printf("push_command_k8s.go: Execute 16.1 number of plans: %d\n", len(pushPlans))
 	log.WithField("number of plans", len(pushPlans)).Debug("completed generating plan")
 	defer func() {
 		if cmd.stopStreamingFunc != nil {
@@ -234,6 +229,7 @@ func (cmd K8PushCommand) Execute(args []string) error {
 	fmt.Printf("push_command_k8s.go: Execute 17\n")
 	for _, plan := range pushPlans {
 		log.WithField("app_name", plan.Application.Name).Info("actualizing")
+		fmt.Printf("push_command_k8s.go: Execute 17.1 app_name: %s\n", plan.Application.Name)
 		eventStream := cmd.PushActor.Actualize(plan, cmd.ProgressBar)
 		err := cmd.eventStreamHandler(eventStream)
 

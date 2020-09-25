@@ -158,6 +158,6 @@ func (client *Client) RootResponse() (Info, Warnings, error) {
 		return Info{}, nil, ccerror.APINotFoundError{URL: client.CloudControllerURL}
 	}
 
-	fmt.Printf("api/cloudcontroller/ccv3/info.go RootResponse 3 err: \n", err.Error())
+	fmt.Printf("api/cloudcontroller/ccv3/info.go RootResponse 3 err: %s\n", err.Error())
 	return responseBody, warnings, err
 }

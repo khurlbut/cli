@@ -269,6 +269,7 @@ func (client *Client) GetApplication(guid string) (Application, Warnings, error)
 // GetApplications returns back a list of Applications based off of the
 // provided filters.
 func (client *Client) GetApplications(filters ...Filter) ([]Application, Warnings, error) {
+	fmt.Printf("api/cloudcontroller/ccv2/application.go 1\n")
 	request, err := client.newHTTPRequest(requestOptions{
 		RequestName: internal.GetAppsRequest,
 		Query:       ConvertFilterParameters(filters),
