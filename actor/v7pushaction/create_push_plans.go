@@ -20,8 +20,6 @@ func (actor Actor) CreatePushPlans(
 	fmt.Printf("actor/v7pushaction/create_push_plans.go CreatePushPlans 1\n")
 	var pushPlans []PushPlan
 
-	return pushPlans, nil, nil
-
 	apps, warnings, err := actor.V7Actor.GetApplicationsByNamesAndSpace(manifest.AppNames(), spaceGUID)
 	if err != nil {
 		return nil, warnings, err
