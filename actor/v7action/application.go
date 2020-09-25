@@ -103,14 +103,26 @@ func (actor Actor) GetApplicationsByGUIDs(appGUIDs []string) ([]resources.Applic
 }
 
 func (actor Actor) GetApplicationsByNamesAndSpace(appNames []string, spaceGUID string) ([]resources.Application, Warnings, error) {
+	fmt.Printf("actor/v7action/application.go GetApplicationByNamesAndSpace 1 appNames: %v\n", appNames)
 	uniqueAppNames := map[string]bool{}
 	for _, appName := range appNames {
 		uniqueAppNames[appName] = true
 	}
 
+	fmt.Printf("actor/v7action/application.go GetApplicationByNamesAndSpace 2 uniqueAppNames: %v\n", uniqueAppNames)
+	fmt.Printf("actor/v7action/application.go GetApplicationByNamesAndSpace 3 actor.CloudControllerClient: %v\n", actor.CloudControllerClient)
+	apps := []resources.Application{}
+	if actor.CloudControllerClient == nil {
+		for _, name := range appNames {
+			apps = append(apps, resources.Application{Name: name})
+		}
+		return apps, nil, nil
+	}
+
 	apps, warnings, err := actor.CloudControllerClient.GetApplications(
 		ccv3.Query{Key: ccv3.NameFilter, Values: appNames},
 		ccv3.Query{Key: ccv3.SpaceGUIDFilter, Values: []string{spaceGUID}},
+		ccv3.Query{Key: ccv3.SpaceGUIDFilter, Values: []string{}},
 	)
 
 	if err != nil {
